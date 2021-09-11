@@ -66,6 +66,7 @@ fn main() {
     game::update(&mut state, &mut commands, 0, draw_wh(&rl));
 
     const BACKGROUND: Color = Color{ r: 0x22, g: 0x22, b: 0x22, a: 255 };
+    const BLACK: Color = Color{ r: 0, g: 0, b: 0, a: 255 };
     const WHITE: Color = Color{ r: 0xee, g: 0xee, b: 0xee, a: 255 };
 
     while !rl.window_should_close() {
@@ -140,5 +141,41 @@ fn main() {
             sizes.play_xywh.h as i32 + 2,
             WHITE
         );
+
+        let tile_base_render_rect = Rectangle {
+            x: 0.,
+            y: 0.,
+            width: sizes.tile_side_length,
+            height: sizes.tile_side_length,
+        };
+
+        for cmd in commands.0.iter() {
+            use game::draw::Command::*;
+            match cmd {
+                Tile(tile_spec) => {
+                    let origin = Vector2 {
+                        x: (tile_base_render_rect.width / 2.).round(),
+                        y: (tile_base_render_rect.height / 2.).round(),
+                    };
+
+                    let tile_rect = Rectangle {
+                        x: tile_spec.xy.x + origin.x,
+                        y: tile_spec.xy.y + origin.y,
+                        ..tile_base_render_rect
+                    };
+
+                    d.draw_rectangle(
+                        tile_rect.x as i32,
+                        tile_rect.y as i32,
+                        tile_rect.width as i32,
+                        tile_rect.height as i32,
+                        match tile_spec.state {
+                            game::TileState::Unlit => BLACK,
+                            game::TileState::Lit => WHITE,
+                        }
+                    );
+                }
+            }
+        }
     }
 }

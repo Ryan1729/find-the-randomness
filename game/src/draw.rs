@@ -1,5 +1,7 @@
 #![deny(unused)]
 
+use crate::tile;
+
 type PlayX = DrawLength;
 type PlayY = DrawLength;
 type PlayW = DrawLength;
@@ -75,16 +77,6 @@ pub struct Sizes {
     pub tile_side_length: TileSideLength,
 }
 
-mod tile {
-    pub type Count = u8;
-    
-    pub struct Coord;
-
-    impl Coord {
-        pub const COUNT: Count = 8;
-    }
-}
-
 const LEFT_UI_WIDTH_TILES: tile::Count = 9;
 const RIGHT_UI_WIDTH_TILES: tile::Count = 9;
 const DRAW_WIDTH_TILES: tile::Count = LEFT_UI_WIDTH_TILES 
@@ -152,12 +144,22 @@ fn fresh_sizes_produces_the_expected_tile_size_in_these_symmetric_cases() {
     );
 }
 
-#[derive(Debug)]
-pub enum Command {
-    Sprite(SpriteSpec),
+pub fn tile_xy_to_draw(sizes: &Sizes, txy: tile::XY) -> DrawXY {
+    DrawXY {
+        x: sizes.board_xywh.x + sizes.board_xywh.w * txy.x.proportion(),
+        y: sizes.board_xywh.y + sizes.board_xywh.h * txy.y.proportion(),
+    }
 }
 
 #[derive(Debug)]
-pub struct SpriteSpec {
+pub enum Command {
+    Tile(TileSpec),
+}
+
+pub use tile::State as TileState;
+
+#[derive(Debug)]
+pub struct TileSpec {
     pub xy: DrawXY,
+    pub state: TileState,
 }
