@@ -68,6 +68,9 @@ fn main() {
     const BACKGROUND: Color = Color{ r: 0x22, g: 0x22, b: 0x22, a: 255 };
     const BLACK: Color = Color{ r: 0, g: 0, b: 0, a: 255 };
     const WHITE: Color = Color{ r: 0xee, g: 0xee, b: 0xee, a: 255 };
+    const BLUE: Color = Color{ r: 0x33, g: 0x52, b: 0xe1, a: 255 };
+    const PLAY_AREA_OUTLINE: Color = BLUE;
+    const BOARD_OUTLINE: Color = WHITE;
 
     while !rl.window_should_close() {
         if rl.is_key_pressed(KEY_F11) {
@@ -139,7 +142,15 @@ fn main() {
             sizes.play_xywh.y as i32 - 1,
             sizes.play_xywh.w as i32 + 2,
             sizes.play_xywh.h as i32 + 2,
-            WHITE
+            PLAY_AREA_OUTLINE
+        );
+
+        d.draw_rectangle_lines(
+            sizes.board_xywh.x as i32 - 1,
+            sizes.board_xywh.y as i32 - 1,
+            sizes.board_xywh.w as i32 + 2,
+            sizes.board_xywh.h as i32 + 2,
+            BOARD_OUTLINE
         );
 
         let tile_base_render_rect = Rectangle {
