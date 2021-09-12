@@ -82,8 +82,19 @@ fn xs_from_seed(mut seed: Seed) -> Xs {
     ]
 }
 
+mod checked {
+    pub trait AddOne: Sized {
+        fn checked_add_one(&self) -> Option<Self>;
+    }
+
+    pub trait SubOne: Sized {
+        fn checked_sub_one(&self) -> Option<Self>;
+    }
+}
+use checked::{AddOne, SubOne};
+
 pub mod tile {
-    use crate::{Xs, xs_u32, Proportion};
+    use crate::{Xs, xs_u32, Proportion, AddOne, SubOne};
 
     pub type Count = u8;
     
@@ -97,6 +108,14 @@ pub mod tile {
             pub enum Coord {
                 $zero_variant,
                 $($wrap_variants,)+
+            }
+
+            impl core::convert::TryFrom<u8> for Coord {
+                type Error = ();
+
+                fn try_from(byte: u8) -> Result<Self, Self::Error> {
+                    Self::const_try_from(byte)
+                }
             }
 
             impl Coord {
@@ -132,16 +151,6 @@ pub mod tile {
                     }
                 }
 
-                const fn const_checked_add_one(&self) -> Option<Self> {
-                    match (*self as u8).checked_add(1) {
-                        Some(byte) => match Self::const_try_from(byte) {
-                            Ok(x) => Some(x),
-                            Err(_) => None,
-                        },
-                        None => None,
-                    }
-                }
-
                 const ZERO: Coord = Coord::ALL[0];
 
                 // Currently there are an even amount of Coords, so there is no true center.
@@ -155,6 +164,32 @@ pub mod tile {
                 #[allow(unused)] // desired in tests
                 pub fn from_rng(rng: &mut Xs) -> Self {
                     Self::ALL[xs_u32(rng, 0, Self::ALL.len() as u32) as usize]
+                }
+            }
+
+            impl AddOne for Coord {
+                fn checked_add_one(&self) -> Option<Self> {
+                    self.const_checked_add_one()
+                }
+            }
+
+            impl Coord {
+                const fn const_checked_add_one(&self) -> Option<Self> {
+                    match (*self as u8).checked_add(1) {
+                        Some(byte) => match Self::const_try_from(byte) {
+                            Ok(x) => Some(x),
+                            Err(_) => None,
+                        },
+                        None => None,
+                    }
+                }
+            }
+
+            impl SubOne for Coord {
+                fn checked_sub_one(&self) -> Option<Self> {
+                    use core::convert::TryInto;
+                    (*self as u8).checked_sub(1)
+                        .and_then(|byte| byte.try_into().ok())
                 }
             }
 
@@ -202,6 +237,18 @@ pub mod tile {
         ($struct_name: ident) => {
             #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
             pub struct $struct_name(Coord);
+
+            impl AddOne for $struct_name {
+                fn checked_add_one(&self) -> Option<Self> {
+                    self.0.checked_add_one().map($struct_name)
+                }
+            }
+        
+            impl SubOne for $struct_name {
+                fn checked_sub_one(&self) -> Option<Self> {
+                    self.0.checked_sub_one().map($struct_name)
+                }
+            }
 
             impl $struct_name {
                 pub fn proportion(&self) -> Proportion {
@@ -332,10 +379,13 @@ fn tiles_from_rng(rng: &mut Xs) -> Tiles {
     output
 }
 
+type UiPos = tile::XY;
+
 #[derive(Debug)]
 struct Board {
     tiles: Tiles,
     rng: Xs,
+    ui_pos: UiPos
 }
 
 impl Default for Board {
@@ -343,6 +393,7 @@ impl Default for Board {
         Self {
             tiles: [Tile::default(); TILES_LENGTH],
             rng: <_>::default(),
+            ui_pos: <_>::default(),
         }
     }
 }
@@ -407,12 +458,71 @@ pub const INPUT_RIGHT_DOWN: InputFlags              = 0b0000_0000_1000_0000;
 
 pub const INPUT_INTERACT_PRESSED: InputFlags        = 0b0000_0001_0000_0000;
 
+enum Input {
+    NoChange,
+    Up,
+    Down,
+    Left,
+    Right,
+    Interact,
+}
+
+impl Input {
+    fn from_flags(flags: InputFlags) -> Self {
+        use Input::*;
+
+        if INPUT_INTERACT_PRESSED & flags != 0 {
+            Interact
+        } else if INPUT_UP_PRESSED & flags != 0 {
+            Up
+        } else if INPUT_DOWN_PRESSED & flags != 0 {
+            Down
+        } else if INPUT_LEFT_PRESSED & flags != 0 {
+            Left
+        } else if INPUT_RIGHT_PRESSED & flags != 0 {
+            Right
+        } else {
+            NoChange
+        }
+    }
+}
+
 pub fn update(
     state: &mut State,
     commands: &mut dyn ClearableStorage<draw::Command>,
     input_flags: InputFlags,
     draw_wh: DrawWH,
 ) {
+    use Input::*;
+    let input = Input::from_flags(input_flags);
+
+    match (input, &mut state.board.ui_pos) {
+        (NoChange, _) => {},
+        (Up, xy) => {
+            if let Some(new_y) = xy.y.checked_sub_one() {
+                xy.y = new_y;
+            }
+        },
+        (Down, xy) => {
+            if let Some(new_y) = xy.y.checked_add_one() {
+                xy.y = new_y;
+            }
+        },
+        (Left, xy) => {
+            if let Some(new_x) = xy.x.checked_sub_one() {
+                xy.x = new_x;
+            }
+        },
+        (Right, xy) => {
+            if let Some(new_x) = xy.x.checked_add_one() {
+                xy.x = new_x;
+            }
+        },
+        (Interact, _xy) => {
+            
+        },
+    }
+
     if draw_wh != state.sizes.draw_wh {
         state.sizes = draw::fresh_sizes(draw_wh);
     }
@@ -431,4 +541,10 @@ pub fn update(
             )
         );
     }
+
+    commands.push(
+        draw::Command::Selectrum(
+            draw::tile_xy_to_draw(&state.sizes, state.board.ui_pos)
+        )
+    );
 }

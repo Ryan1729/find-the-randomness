@@ -154,6 +154,7 @@ pub fn tile_xy_to_draw(sizes: &Sizes, txy: tile::XY) -> DrawXY {
 #[derive(Debug)]
 pub enum Command {
     Tile(TileSpec),
+    Selectrum(DrawXY),
 }
 
 pub use tile::State as TileState;

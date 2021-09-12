@@ -71,6 +71,9 @@ fn main() {
     const BLUE: Color = Color{ r: 0x33, g: 0x52, b: 0xe1, a: 255 };
     const PLAY_AREA_OUTLINE: Color = BLUE;
     const BOARD_OUTLINE: Color = WHITE;
+    const UNLIT: Color = BLACK;
+    const LIT: Color = WHITE;
+    const SELECTRUM: Color = BLUE;
 
     while !rl.window_should_close() {
         if rl.is_key_pressed(KEY_F11) {
@@ -122,13 +125,6 @@ fn main() {
             draw_wh(&rl)
         );
 
-        let screen_render_rect = Rectangle {
-            x: 0.,
-            y: 0.,
-            width: rl.get_screen_width() as _,
-            height: rl.get_screen_height() as _
-        };
-
         let sizes = game::sizes(&state);
 
         let mut d = rl.begin_drawing(&thread);
@@ -176,11 +172,26 @@ fn main() {
                         tile_rect.width as i32,
                         tile_rect.height as i32,
                         match tile_spec.state {
-                            game::TileState::Unlit => BLACK,
-                            game::TileState::Lit => WHITE,
+                            game::TileState::Unlit => UNLIT,
+                            game::TileState::Lit => LIT,
                         }
                     );
-                }
+                },
+                Selectrum(xy) => {
+                    let tile_rect = Rectangle {
+                        x: xy.x,
+                        y: xy.y,
+                        ..tile_base_render_rect
+                    };
+
+                    d.draw_rectangle_rounded_lines(
+                        tile_rect,
+                        0.25,
+                        6,
+                        8,
+                        SELECTRUM
+                    );
+                },
             }
         }
     }
