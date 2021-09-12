@@ -164,14 +164,9 @@ fn main() {
             use game::draw::Command::*;
             match cmd {
                 Tile(tile_spec) => {
-                    let origin = Vector2 {
-                        x: (tile_base_render_rect.width / 2.).round(),
-                        y: (tile_base_render_rect.height / 2.).round(),
-                    };
-
                     let tile_rect = Rectangle {
-                        x: tile_spec.xy.x + origin.x,
-                        y: tile_spec.xy.y + origin.y,
+                        x: tile_spec.xy.x,
+                        y: tile_spec.xy.y,
                         ..tile_base_render_rect
                     };
 
