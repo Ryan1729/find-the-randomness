@@ -350,9 +350,28 @@ pub mod tile {
     pub fn xy_to_i_usize((x, y): (usize, usize)) -> usize {
         y * Coord::COUNT as usize + x
     }
-}
 
-pub const TILES_LENGTH: usize = tile::Coord::COUNT as usize * tile::Coord::COUNT as usize;
+    fn to_coord_or_default(n: Count) -> Coord {
+        core::convert::TryFrom::try_from(n).unwrap_or_default()
+    }
+
+    pub fn i_to_xy(index: usize) -> XY {
+        XY {
+            x: X(to_coord_or_default(
+                (index % Coord::COUNT as usize) as Count
+            )),
+            y: Y(to_coord_or_default(
+                ((index % (TILES_LENGTH as usize) as usize) 
+                / Coord::COUNT as usize) as Count
+            )),
+        }
+    }
+    pub const TILES_LENGTH_U32: u32 = Coord::COUNT as u32 * Coord::COUNT as u32;
+    pub const TILES_LENGTH: usize = TILES_LENGTH_U32 as usize;
+}
+use tile::{TILES_LENGTH_U32, TILES_LENGTH};
+
+
 
 #[derive(Clone, Copy, Debug, Default)]
 struct Tile {
@@ -381,9 +400,25 @@ fn tiles_from_rng(rng: &mut Xs) -> Tiles {
 
 type UiPos = tile::XY;
 
+type TilesIndex = u32;
+
+#[derive(Debug)]
+enum BoardState {
+    Running,
+    ShowAnswer,
+}
+
+impl Default for BoardState {
+    fn default() -> Self {
+        Self::Running
+    }
+}
+
 #[derive(Debug)]
 struct Board {
     tiles: Tiles,
+    randomized_index: TilesIndex,
+    state: BoardState,
     rng: Xs,
     ui_pos: UiPos
 }
@@ -392,6 +427,8 @@ impl Default for Board {
     fn default() -> Self {
         Self {
             tiles: [Tile::default(); TILES_LENGTH],
+            randomized_index: <_>::default(),
+            state: <_>::default(),
             rng: <_>::default(),
             ui_pos: <_>::default(),
         }
@@ -406,9 +443,14 @@ impl Board {
 
         Self {
             tiles,
+            randomized_index: xs_u32(&mut rng, 0, TILES_LENGTH_U32),
             rng,
             ..<_>::default()
         }
+    }
+
+    fn advance(&mut self) {
+        // TODO
     }
 }
 
@@ -457,6 +499,8 @@ pub const INPUT_LEFT_DOWN: InputFlags               = 0b0000_0000_0100_0000;
 pub const INPUT_RIGHT_DOWN: InputFlags              = 0b0000_0000_1000_0000;
 
 pub const INPUT_INTERACT_PRESSED: InputFlags        = 0b0000_0001_0000_0000;
+
+pub const INPUT_DEBUG_ONE_PRESSED: InputFlags       = 0b1000_0000_0000_0000;
 
 enum Input {
     NoChange,
@@ -519,8 +563,15 @@ pub fn update(
             }
         },
         (Interact, _xy) => {
-            
+            state.board.advance();
         },
+    }
+
+    if INPUT_DEBUG_ONE_PRESSED & input_flags != 0 {
+        state.board.state = match state.board.state {
+            BoardState::Running => BoardState::ShowAnswer,
+            BoardState::ShowAnswer => BoardState::Running,
+        };
     }
 
     if draw_wh != state.sizes.draw_wh {
@@ -529,17 +580,35 @@ pub fn update(
 
     commands.clear();
 
-    for xy in tile::XY::all() {
-        let tile = state.board.tiles[tile::xy_to_i(xy)];
+    match state.board.state {
+        BoardState::Running => {
+            for xy in tile::XY::all() {
+                let tile = state.board.tiles[tile::xy_to_i(xy)];
+        
+                commands.push(
+                    draw::Command::Tile(
+                        draw::TileSpec {
+                            xy: draw::tile_xy_to_draw(&state.sizes, xy),
+                            state: tile.state,
+                        }
+                    )
+                );
+            }
+        },
+        BoardState::ShowAnswer => {
+            let tile: Tile = state.board.tiles[state.board.randomized_index as usize];
 
-        commands.push(
-            draw::Command::Tile(
-                draw::TileSpec {
-                    xy: draw::tile_xy_to_draw(&state.sizes, xy),
-                    state: tile.state,
-                }
-            )
-        );
+            let xy = tile::i_to_xy(state.board.randomized_index as _);
+    
+            commands.push(
+                draw::Command::Tile(
+                    draw::TileSpec {
+                        xy: draw::tile_xy_to_draw(&state.sizes, xy),
+                        state: tile.state,
+                    }
+                )
+            );
+        },
     }
 
     commands.push(

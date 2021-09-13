@@ -118,6 +118,10 @@ fn main() {
             input_flags |= game::INPUT_RIGHT_PRESSED;
         }
 
+        if rl.is_key_pressed(KEY_F1) {
+            input_flags |= game::INPUT_DEBUG_ONE_PRESSED;
+        }
+
         game::update(
             &mut state,
             &mut commands,
