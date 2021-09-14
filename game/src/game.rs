@@ -320,6 +320,61 @@ pub mod tile {
     }
 
     #[derive(Clone, Copy, Debug)]
+    pub enum Dir {
+        Up,
+        Down,
+        Left,
+        Right,
+    }
+
+    // Might want to know which edge it went off later.
+    type DirError = ();
+
+    impl XY {
+        pub(crate) fn checked_move(&self, dir: Dir) -> Result<Self, DirError> {
+            use Dir::*;
+            match dir {
+                Up => {
+                    self.y
+                        .checked_sub_one()
+                        .ok_or(())
+                        .map(|y| Self {
+                            x: self.x,
+                            y,
+                        })
+                },
+                Down => {
+                    self.y
+                        .checked_add_one()
+                        .ok_or(())
+                        .map(|y| Self {
+                            x: self.x,
+                            y,
+                        })
+                },
+                Left => {
+                    self.x
+                        .checked_sub_one()
+                        .ok_or(())
+                        .map(|x| Self {
+                            x,
+                            y: self.y,
+                        })
+                },
+                Right => {
+                    self.x
+                        .checked_add_one()
+                        .ok_or(())
+                        .map(|x| Self {
+                            x,
+                            y: self.y,
+                        })
+                },
+            }
+        }
+    }
+
+    #[derive(Clone, Copy, Debug)]
     pub enum State {
         Unlit,
         Lit,
@@ -371,17 +426,66 @@ pub mod tile {
 }
 use tile::{TILES_LENGTH_U32, TILES_LENGTH};
 
+type TileFunc = u32;
 
+fn tile_func_from_rng(rng: &mut Xs) -> TileFunc {
+    xorshift(rng)
+}
+
+struct TileFuncParams {
+    at: tile::State,
+    up: tile::State,
+    down: tile::State,
+    left: tile::State,
+    right: tile::State,
+}
+
+fn apply_tile_func(
+    TileFuncParams{
+        at,
+        up,
+        down,
+        left,
+        right,
+    }: TileFuncParams,
+    func: TileFunc,
+) -> tile::State {
+    macro_rules! to_bit {
+        ($state: expr) => {
+            match $state {
+                tile::State::Unlit => 0,
+                tile::State::Lit => 1,
+            }
+        }
+    }
+
+    let bit_index: TileFunc = 
+        (to_bit!(right) << 4)
+        | (to_bit!(left) << 3)
+        | (to_bit!(down) << 2)
+        | (to_bit!(up) << 1)
+        | (to_bit!(at) << 0)
+        ;
+
+    debug_assert!(bit_index < TileFunc::BITS);
+
+    match (func >> bit_index) & 1 {
+        1 => tile::State::Lit,
+        _ => tile::State::Unlit,
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default)]
 struct Tile {
     state: tile::State,
+    func: TileFunc,
 }
 
 impl Tile {
     pub fn from_rng(rng: &mut Xs) -> Tile {
         Self {
             state: tile::State::from_rng(rng),
+            func: tile_func_from_rng(rng),
         }
     }
 }
@@ -449,8 +553,41 @@ impl Board {
         }
     }
 
-    fn advance(&mut self) {
-        // TODO
+    pub(crate) fn advance(&mut self) {
+        self.tiles[self.randomized_index as usize].func = tile_func_from_rng(&mut self.rng);
+
+        for xy in tile::XY::all() {
+            use tile::Dir::*;
+
+            macro_rules! move_to {
+                ($dir: expr) => {
+                    match xy.checked_move($dir) {
+                        Ok(new_xy) => {
+                            self.tiles[tile::xy_to_i(new_xy)].state
+                        },
+                        Err(_) => <_>::default(),
+                    }
+                }
+            }
+
+            let up = move_to!(Up);
+            let down = move_to!(Down);
+            let left = move_to!(Left);
+            let right = move_to!(Right);
+
+            let tile = &mut self.tiles[tile::xy_to_i(xy)];
+
+            tile.state = apply_tile_func(
+                TileFuncParams {
+                    at: tile.state,
+                    up,
+                    down,
+                    left,
+                    right,
+                },
+                tile.func,
+            );
+        }
     }
 }
 
